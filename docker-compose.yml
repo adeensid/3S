@@ -1,0 +1,63 @@
+services:
+  mongodb:
+    image: mongo:7
+    container_name: sid-mongodb
+    restart: unless-stopped
+    volumes:
+      - sid_mongodb_data:/data/db
+    ports:
+      - '27017:27017'
+    healthcheck:
+      test: ['CMD', 'mongosh', '--eval', "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    image: sid-software-solutions-server:latest
+    container_name: sid-server
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017/sid-software-solutions
+      NODE_ENV: production
+    ports:
+      - '4000:4000'
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+      args:
+        VITE_API_URL: http://localhost:4000
+    image: sid-software-solutions-client:latest
+    container_name: sid-client
+    restart: unless-stopped
+    ports:
+      - '5173:80'
+    depends_on:
+      server:
+        condition: service_healthy
+
+volumes:
+  sid_mongodb_data:

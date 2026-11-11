@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run type-check
+
+      - name: Test unit
+        run: npm run test:unit -w @sid-software-solutions/server
+        env:
+          JWT_ACCESS_SECRET: ci-access-secret-minimum-32-characters
+          JWT_REFRESH_SECRET: ci-refresh-secret-minimum-32-characters
+
+      - name: Test client
+        run: npm run test -w @sid-software-solutions/client
+
+      - name: Test integration
+        run: npm run test:integration -w @sid-software-solutions/server
+        env:
+          MONGODB_URI: mongodb://127.0.0.1:27017/sid-test
+          MONGOMS_DISABLED: '1'
+          JWT_ACCESS_SECRET: ci-access-secret-minimum-32-characters
+          JWT_REFRESH_SECRET: ci-refresh-secret-minimum-32-characters
+
+      - name: Build
+        run: npm run build
+        env:
+          MONGODB_URI: mongodb://127.0.0.1:27017/sid-test
+          MONGOMS_DISABLED: '1'
+          JWT_ACCESS_SECRET: ci-access-secret-minimum-32-characters
+          JWT_REFRESH_SECRET: ci-refresh-secret-minimum-32-characters
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+        working-directory: client
+
+      - name: Playwright E2E
+        run: npm run test:e2e -w @sid-software-solutions/client
+        env:
+          JWT_ACCESS_SECRET: ci-access-secret-minimum-32-characters
+          JWT_REFRESH_SECRET: ci-refresh-secret-minimum-32-characters

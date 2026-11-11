@@ -1,0 +1,31 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Build Docker images
+        run: |
+          docker build -f server/Dockerfile -t sid-software-solutions-server:latest .
+          docker build -f client/Dockerfile -t sid-software-solutions-client:latest .
+
+      - name: Deploy placeholder
+        run: |
+          echo "Push images to your registry and deploy to Render/EC2 using repository secrets."
